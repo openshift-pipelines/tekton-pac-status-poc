@@ -1,0 +1,25 @@
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "PipelineRun",
+  "metadata": {
+    "name": "status-inconsistent-failure",
+    "annotations": {
+      "pipelinesascode.tekton.dev/results-status": "pac-status"
+    }
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Succeeded",
+        "status": "True",
+        "reason": "Succeeded"
+      }
+    ],
+    "results": [
+      {
+        "name": "pac-status",
+        "value": "{\"version\":\"1\",\"outcome\":\"failure\",\"summary\":\"Tests failed but the PipelineRun stayed green\"}"
+      }
+    ]
+  }
+}

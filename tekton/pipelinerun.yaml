@@ -1,0 +1,99 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: pac-status-poc-
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/results-status: pac-status
+spec:
+  params:
+    - name: test-output
+      # Reconstructed from the public Konflux warning linked in examples/konflux.
+      value: >-
+        {"result":"WARNING","timestamp":"2026-10-05T10:13:49Z","note":"","namespace":"","successes":150,"failures":0,"warnings":5}
+  pipelineSpec:
+    params:
+      - name: test-output
+        type: string
+    results:
+      - name: pac-status
+        description: Bounded status hint for VCS presentation
+        value: $(finally.aggregate.results.pac-status)
+    tasks:
+      - name: evaluate
+        params:
+          - name: test-output
+            value: $(params.test-output)
+        taskSpec:
+          params:
+            - name: test-output
+              type: string
+          results:
+            - name: TEST_OUTPUT
+          steps:
+            - name: report
+              image: python:3.12-alpine
+              env:
+                - name: TEST_OUTPUT
+                  value: $(params.test-output)
+                - name: RESULT_PATH
+                  value: $(results.TEST_OUTPUT.path)
+              script: |
+                #!/usr/bin/env python3
+                import json
+                import os
+
+                report = json.loads(os.environ["TEST_OUTPUT"])
+                with open(os.environ["RESULT_PATH"], "w", encoding="utf-8") as result:
+                    json.dump(report, result, separators=(",", ":"))
+    finally:
+      - name: aggregate
+        params:
+          - name: test-output
+            value: $(tasks.evaluate.results.TEST_OUTPUT)
+        taskSpec:
+          params:
+            - name: test-output
+              type: string
+          results:
+            - name: pac-status
+          steps:
+            - name: aggregate
+              image: python:3.12-alpine
+              env:
+                - name: TEST_OUTPUT
+                  value: $(params.test-output)
+                - name: RESULT_PATH
+                  value: $(results.pac-status.path)
+              script: |
+                #!/usr/bin/env python3
+                import json
+                import os
+                import sys
+
+                source = json.loads(os.environ["TEST_OUTPUT"])
+                outcome = str(source.get("result", "")).strip().lower()
+                if outcome not in {"success", "warning", "failure", "error"}:
+                    raise SystemExit(f"unsupported outcome: {outcome}")
+
+                summary = str(source.get("note", "")).strip()
+                if not summary:
+                    counts = [
+                        f"{source.get(name)} {name}"
+                        for name in ("successes", "warnings", "failures")
+                        if isinstance(source.get(name), int) and source.get(name) > 0
+                    ]
+                    summary = f"{outcome.title()}: {', '.join(counts)}" if counts else outcome.title()
+
+                report = {
+                    "version": "1",
+                    "outcome": outcome,
+                    "summary": summary,
+                }
+                with open(os.environ["RESULT_PATH"], "w", encoding="utf-8") as result:
+                    json.dump(report, result, separators=(",", ":"))
+
+                # Keep Kubernetes and VCS failure semantics aligned.
+                if outcome in {"failure", "error"}:
+                    sys.exit(1)

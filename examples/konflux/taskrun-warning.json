@@ -1,0 +1,25 @@
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "TaskRun",
+  "metadata": {
+    "name": "enterprise-contract-verify-example",
+    "labels": {
+      "tekton.dev/pipelineTask": "verify"
+    }
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Succeeded",
+        "status": "True",
+        "reason": "Succeeded"
+      }
+    ],
+    "results": [
+      {
+        "name": "TEST_OUTPUT",
+        "value": "{\"result\":\"WARNING\",\"timestamp\":\"2026-10-05T10:13:49Z\",\"note\":\"\",\"namespace\":\"\",\"successes\":150,\"failures\":0,\"warnings\":5}"
+      }
+    ]
+  }
+}

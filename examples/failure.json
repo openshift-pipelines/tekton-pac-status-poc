@@ -1,0 +1,25 @@
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "PipelineRun",
+  "metadata": {
+    "name": "status-failure",
+    "annotations": {
+      "pipelinesascode.tekton.dev/results-status": "pac-status"
+    }
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Succeeded",
+        "status": "False",
+        "reason": "Failed"
+      }
+    ],
+    "results": [
+      {
+        "name": "pac-status",
+        "value": "{\"version\":\"1\",\"outcome\":\"failure\",\"summary\":\"Required checks failed\"}"
+      }
+    ]
+  }
+}
