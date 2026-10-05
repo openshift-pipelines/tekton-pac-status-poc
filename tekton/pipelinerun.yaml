@@ -1,0 +1,102 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: pac-status-poc-
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/results-status: pac-status
+spec:
+  params:
+    - name: outcome
+      value: warning
+    - name: summary
+      value: A dependency is deprecated
+  pipelineSpec:
+    params:
+      - name: outcome
+        type: string
+      - name: summary
+        type: string
+    results:
+      - name: pac-status
+        description: Bounded status hint for VCS presentation
+        value: $(finally.aggregate.results.pac-status)
+    tasks:
+      - name: evaluate
+        params:
+          - name: outcome
+            value: $(params.outcome)
+          - name: summary
+            value: $(params.summary)
+        taskSpec:
+          params:
+            - name: outcome
+              type: string
+            - name: summary
+              type: string
+          results:
+            - name: outcome
+            - name: summary
+          steps:
+            - name: report
+              image: alpine:3.20
+              env:
+                - name: OUTCOME
+                  value: $(params.outcome)
+                - name: SUMMARY
+                  value: $(params.summary)
+                - name: OUTCOME_PATH
+                  value: $(results.outcome.path)
+                - name: SUMMARY_PATH
+                  value: $(results.summary.path)
+              script: |
+                #!/bin/sh
+                set -eu
+                printf '%s' "$OUTCOME" > "$OUTCOME_PATH"
+                printf '%s' "$SUMMARY" > "$SUMMARY_PATH"
+    finally:
+      - name: aggregate
+        params:
+          - name: outcome
+            value: $(tasks.evaluate.results.outcome)
+          - name: summary
+            value: $(tasks.evaluate.results.summary)
+        taskSpec:
+          params:
+            - name: outcome
+              type: string
+            - name: summary
+              type: string
+          results:
+            - name: pac-status
+          steps:
+            - name: aggregate
+              image: python:3.12-alpine
+              env:
+                - name: OUTCOME
+                  value: $(params.outcome)
+                - name: SUMMARY
+                  value: $(params.summary)
+                - name: RESULT_PATH
+                  value: $(results.pac-status.path)
+              script: |
+                #!/usr/bin/env python3
+                import json
+                import os
+                import sys
+
+                outcome = os.environ["OUTCOME"].strip().lower()
+                report = {
+                    "version": "1",
+                    "outcome": outcome,
+                    "summary": os.environ["SUMMARY"].strip(),
+                }
+                with open(os.environ["RESULT_PATH"], "w", encoding="utf-8") as result:
+                    json.dump(report, result, separators=(",", ":"))
+
+                # Keep Kubernetes and VCS failure semantics aligned.
+                if outcome in {"failure", "error"}:
+                    sys.exit(1)
+                if outcome not in {"success", "warning"}:
+                    raise SystemExit(f"unsupported outcome: {outcome}")
