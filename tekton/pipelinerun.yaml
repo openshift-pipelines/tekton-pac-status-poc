@@ -36,37 +36,40 @@ spec:
             - name: summary
               type: string
           results:
-            - name: outcome
-            - name: summary
+            - name: TEST_OUTPUT
           steps:
             - name: report
-              image: alpine:3.20
+              image: python:3.12-alpine
               env:
                 - name: OUTCOME
                   value: $(params.outcome)
                 - name: SUMMARY
                   value: $(params.summary)
-                - name: OUTCOME_PATH
-                  value: $(results.outcome.path)
-                - name: SUMMARY_PATH
-                  value: $(results.summary.path)
+                - name: RESULT_PATH
+                  value: $(results.TEST_OUTPUT.path)
               script: |
-                #!/bin/sh
-                set -eu
-                printf '%s' "$OUTCOME" > "$OUTCOME_PATH"
-                printf '%s' "$SUMMARY" > "$SUMMARY_PATH"
+                #!/usr/bin/env python3
+                import json
+                import os
+
+                outcome = os.environ["OUTCOME"].strip().upper()
+                report = {
+                    "result": outcome,
+                    "note": os.environ["SUMMARY"].strip(),
+                    "successes": int(outcome == "SUCCESS"),
+                    "failures": int(outcome in {"FAILURE", "ERROR"}),
+                    "warnings": int(outcome == "WARNING"),
+                }
+                with open(os.environ["RESULT_PATH"], "w", encoding="utf-8") as result:
+                    json.dump(report, result, separators=(",", ":"))
     finally:
       - name: aggregate
         params:
-          - name: outcome
-            value: $(tasks.evaluate.results.outcome)
-          - name: summary
-            value: $(tasks.evaluate.results.summary)
+          - name: test-output
+            value: $(tasks.evaluate.results.TEST_OUTPUT)
         taskSpec:
           params:
-            - name: outcome
-              type: string
-            - name: summary
+            - name: test-output
               type: string
           results:
             - name: pac-status
@@ -74,10 +77,8 @@ spec:
             - name: aggregate
               image: python:3.12-alpine
               env:
-                - name: OUTCOME
-                  value: $(params.outcome)
-                - name: SUMMARY
-                  value: $(params.summary)
+                - name: TEST_OUTPUT
+                  value: $(params.test-output)
                 - name: RESULT_PATH
                   value: $(results.pac-status.path)
               script: |
@@ -86,11 +87,15 @@ spec:
                 import os
                 import sys
 
-                outcome = os.environ["OUTCOME"].strip().lower()
+                source = json.loads(os.environ["TEST_OUTPUT"])
+                outcome = str(source.get("result", "")).strip().lower()
+                if outcome not in {"success", "warning", "failure", "error"}:
+                    raise SystemExit(f"unsupported outcome: {outcome}")
+
                 report = {
                     "version": "1",
                     "outcome": outcome,
-                    "summary": os.environ["SUMMARY"].strip(),
+                    "summary": str(source.get("note", "")).strip(),
                 }
                 with open(os.environ["RESULT_PATH"], "w", encoding="utf-8") as result:
                     json.dump(report, result, separators=(",", ":"))
@@ -98,5 +103,3 @@ spec:
                 # Keep Kubernetes and VCS failure semantics aligned.
                 if outcome in {"failure", "error"}:
                     sys.exit(1)
-                if outcome not in {"success", "warning"}:
-                    raise SystemExit(f"unsupported outcome: {outcome}")

@@ -5,18 +5,26 @@ warning in a Git provider without adding a new Tekton API.
 
 The PoC uses existing primitives:
 
-1. A final task aggregates task outcomes.
-2. `failure` or `error` makes that final task fail, so Kubernetes and the VCS
+1. A task emits an existing-style `TEST_OUTPUT` result.
+2. A final task reduces that result to one bounded `PipelineResult`.
+3. `failure` or `error` makes the final task fail, so Kubernetes and the VCS
    agree that the `PipelineRun` failed.
-3. `warning` leaves the `PipelineRun` successful and writes one bounded
-   `PipelineResult` for Pipelines-as-Code (PaC) to present.
-4. The `PipelineRun` opts in by naming that result in an annotation.
+4. `warning` leaves the `PipelineRun` successful for PaC to present.
+5. The `PipelineRun` opts in by naming the reduced result in an annotation.
 
 ```yaml
 metadata:
   annotations:
     pipelinesascode.tekton.dev/results-status: pac-status
 ```
+
+The final task reduces a task result such as:
+
+```json
+{"result":"WARNING","note":"A dependency is deprecated","warnings":1}
+```
+
+to the bounded PaC-facing result:
 
 ```json
 {"version":"1","outcome":"warning","summary":"A dependency is deprecated"}
