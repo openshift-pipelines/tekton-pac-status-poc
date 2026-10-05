@@ -1,0 +1,25 @@
+{
+  "source": {
+    "repository": "openshift-pipelines/syncer-service",
+    "pullRequest": 115,
+    "commit": "2a6cb87a79f3e0388f9eae63f25280e18bd0b791",
+    "checkRun": 111703203017,
+    "url": "https://github.com/openshift-pipelines/syncer-service/runs/111703203017"
+  },
+  "githubCheck": {
+    "name": "Red Hat Konflux / syncer-service-0-1-enterprise-contract / syncer-service-0-1-syncer-service",
+    "status": "completed",
+    "completedAt": "2026-10-05T09:46:48Z",
+    "conclusion": "failure",
+    "title": "Failed",
+    "summary": "Integration test for component syncer-service-0-1-syncer-service snapshot syncer-service-0-1-20261005-094056-000 and scenario syncer-service-0-1-enterprise-contract has failed"
+  },
+  "taskResult": {
+    "name": "verify",
+    "result": "FAILURE",
+    "note": "",
+    "successes": 295,
+    "failures": 20,
+    "warnings": 99
+  }
+}

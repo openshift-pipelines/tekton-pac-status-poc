@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -108,44 +109,129 @@ func TestDecide(t *testing.T) {
 	}
 }
 
-func TestKonfluxExamples(t *testing.T) {
+type observedTaskResult struct {
+	Name      string `json:"name"`
+	Result    string `json:"result"`
+	Note      string `json:"note"`
+	Successes int    `json:"successes"`
+	Failures  int    `json:"failures"`
+	Warnings  int    `json:"warnings"`
+}
+
+type observedKonfluxRun struct {
+	Source struct {
+		URL string `json:"url"`
+	} `json:"source"`
+	GitHubCheck struct {
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
+		Title      string `json:"title"`
+		Summary    string `json:"summary"`
+	} `json:"githubCheck"`
+	TaskResult observedTaskResult `json:"taskResult"`
+}
+
+func TestObservedKonfluxOutputs(t *testing.T) {
 	tests := []struct {
-		name string
-		file string
-		want decision
+		name        string
+		observed    string
+		taskRun     string
+		pipelineRun string
 	}{
 		{
-			name: "warning",
-			file: "examples/konflux/pipelinerun-warning.json",
-			want: decision{
-				ExecutionConclusion: "success",
-				VCSConclusion:       "neutral",
-				Warning:             true,
-				Summary:             "Task deprecated-image-check completed: Check result for task result.",
-			},
+			name:        "warning",
+			observed:    "examples/konflux/observed-warning.json",
+			taskRun:     "examples/konflux/taskrun-warning.json",
+			pipelineRun: "examples/konflux/pipelinerun-warning.json",
 		},
 		{
-			name: "error",
-			file: "examples/konflux/pipelinerun-error.json",
-			want: decision{ExecutionConclusion: "failure", VCSConclusion: "failure"},
+			name:        "failure",
+			observed:    "examples/konflux/observed-failure.json",
+			taskRun:     "examples/konflux/taskrun-failure.json",
+			pipelineRun: "examples/konflux/pipelinerun-failure.json",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			data, err := os.ReadFile(test.file)
-			if err != nil {
-				t.Fatal(err)
+			var observed observedKonfluxRun
+			readJSONFixture(t, test.observed, &observed)
+			if observed.Source.URL == "" || observed.GitHubCheck.Status != "completed" {
+				t.Fatalf("invalid observed source: %#v", observed)
 			}
+
+			if got := readTaskResultFixture(t, test.taskRun); got != observed.TaskResult {
+				t.Fatalf("TEST_OUTPUT = %#v, observed %#v", got, observed.TaskResult)
+			}
+
 			var pr pipelineRun
-			if err := json.Unmarshal(data, &pr); err != nil {
-				t.Fatal(err)
+			readJSONFixture(t, test.pipelineRun, &pr)
+			got := decide(pr, "github-checks")
+			if got.VCSConclusion != observed.GitHubCheck.Conclusion {
+				t.Fatalf("VCS conclusion = %q, observed %q", got.VCSConclusion, observed.GitHubCheck.Conclusion)
 			}
-			if got := decide(pr, "github-checks"); got != test.want {
-				t.Fatalf("decide() = %#v, want %#v", got, test.want)
+			if got.Warning != (observed.GitHubCheck.Title == "Warning") {
+				t.Fatalf("warning = %t, observed title %q", got.Warning, observed.GitHubCheck.Title)
+			}
+
+			for _, count := range []struct {
+				value int
+				label string
+			}{
+				{observed.TaskResult.Successes, "successes"},
+				{observed.TaskResult.Warnings, "warnings"},
+				{observed.TaskResult.Failures, "failures"},
+			} {
+				if got.Warning && count.value > 0 && !strings.Contains(got.Summary, fmt.Sprintf("%d %s", count.value, count.label)) {
+					t.Fatalf("summary %q does not contain observed count %d %s", got.Summary, count.value, count.label)
+				}
 			}
 		})
 	}
+}
+
+func readJSONFixture(t *testing.T, path string, value any) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, value); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readTaskResultFixture(t *testing.T, path string) observedTaskResult {
+	t.Helper()
+	var taskRun struct {
+		Metadata struct {
+			Labels map[string]string `json:"labels"`
+		} `json:"metadata"`
+		Status struct {
+			Results []struct {
+				Name  string          `json:"name"`
+				Value json.RawMessage `json:"value"`
+			} `json:"results"`
+		} `json:"status"`
+	}
+	readJSONFixture(t, path, &taskRun)
+	for _, result := range taskRun.Status.Results {
+		if result.Name != "TEST_OUTPUT" {
+			continue
+		}
+		var encoded string
+		if err := json.Unmarshal(result.Value, &encoded); err != nil {
+			t.Fatal(err)
+		}
+		var output observedTaskResult
+		if err := json.Unmarshal([]byte(encoded), &output); err != nil {
+			t.Fatal(err)
+		}
+		output.Name = taskRun.Metadata.Labels["tekton.dev/pipelineTask"]
+		return output
+	}
+	t.Fatal("TEST_OUTPUT not found")
+	return observedTaskResult{}
 }
 
 func pipelineRunJSON(condition, reason, resultName, resultValue string) string {

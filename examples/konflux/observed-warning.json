@@ -1,0 +1,25 @@
+{
+  "source": {
+    "repository": "openshift-pipelines/operator",
+    "pullRequest": 32549,
+    "commit": "efa62aafe61c947f7dd69ff512e101510740d325",
+    "checkRun": 111713232004,
+    "url": "https://github.com/openshift-pipelines/operator/runs/111713232004"
+  },
+  "githubCheck": {
+    "name": "Red Hat Konflux / openshift-pipelines-bundle-1-23-enterprise-contract / operator-1-23-bundle",
+    "status": "completed",
+    "completedAt": "2026-10-05T10:13:49Z",
+    "conclusion": "neutral",
+    "title": "Warning",
+    "summary": "Integration test for component operator-1-23-bundle snapshot openshift-pipelines-bundle-1-23-20261005-100932-000 and optional scenario openshift-pipelines-bundle-1-23-enterprise-contract has warning(s)"
+  },
+  "taskResult": {
+    "name": "verify",
+    "result": "WARNING",
+    "note": "",
+    "successes": 150,
+    "failures": 0,
+    "warnings": 5
+  }
+}

@@ -18,16 +18,16 @@ metadata:
     pipelinesascode.tekton.dev/results-status: pac-status
 ```
 
-The final task reduces a task result such as:
+The checked-in example replays the warning observed in a public Konflux run:
 
 ```json
-{"result":"WARNING","note":"A dependency is deprecated","warnings":1}
+{"result":"WARNING","note":"","successes":150,"failures":0,"warnings":5}
 ```
 
-to the bounded PaC-facing result:
+The final task reduces it to the bounded PaC-facing result:
 
 ```json
-{"version":"1","outcome":"warning","summary":"A dependency is deprecated"}
+{"version":"1","outcome":"warning","summary":"Warning: 150 successes, 5 warnings"}
 ```
 
 ## Decision rules
@@ -75,19 +75,31 @@ Expected GitHub Check Runs decision:
 `examples/inconsistent-failure.json` demonstrates the safety rule: a result
 cannot silently make VCS failure disagree with a successful `PipelineRun`.
 
-## Konflux-shaped input and output
+## Public Konflux runs used as tests
 
-[`examples/konflux`](examples/konflux) contains sanitized TaskRun fixtures using
-the real public Konflux `TEST_OUTPUT` schema, the PipelineRun shape PaC would
-consume after aggregation, and expected GitHub/GitLab decisions.
+[`examples/konflux`](examples/konflux) records the exact semantic output used by
+the PoC tests:
+
+- [`operator` check run 111713232004](https://github.com/openshift-pipelines/operator/runs/111713232004):
+  `WARNING`, 150 successes, 5 warnings, GitHub conclusion `neutral`;
+- [`syncer-service` check run 111703203017](https://github.com/openshift-pipelines/syncer-service/runs/111703203017):
+  `FAILURE`, 295 successes, 99 warnings, 20 failures, GitHub conclusion
+  `failure`.
+
+`TestObservedKonfluxOutputs` verifies the reconstructed `TEST_OUTPUT` values and
+uses the public Check Run conclusions as the expected provider output. The
+fixture README documents exactly which fields are observed and which TaskRun
+fields are reconstructed because direct cluster access requires authentication.
 
 ```sh
+go test -run TestObservedKonfluxOutputs -v
 make demo-konflux
 ```
 
 ## Run the Tekton example
 
-The default manifest emits a warning and finishes successfully:
+The default manifest replays the observed 150-success/5-warning result and
+finishes successfully:
 
 ```sh
 run=$(kubectl create -f tekton/pipelinerun.yaml -o name)
@@ -95,9 +107,9 @@ kubectl wait --for=condition=Succeeded --timeout=5m "$run"
 kubectl get "$run" -o json | go run . -provider github-checks -
 ```
 
-Change the `outcome` parameter to `failure` or `error` to prove that the final
-task makes the `PipelineRun` fail. Accepted values are `success`, `warning`,
-`failure`, and `error`.
+Replace the `test-output` parameter with the `TEST_OUTPUT` value from
+`examples/konflux/taskrun-failure.json` to prove that the final task makes the
+`PipelineRun` fail.
 
 ## Upstream integration point
 

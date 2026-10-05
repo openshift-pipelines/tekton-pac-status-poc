@@ -18,7 +18,7 @@
     "results": [
       {
         "name": "TEST_OUTPUT",
-        "value": "{\"result\":\"WARNING\",\"timestamp\":\"2026-10-05T10:13:49Z\",\"note\":\"\",\"namespace\":\"\",\"successes\":150,\"failures\":0,\"warnings\":5}"
+        "value": "{\"result\":\"FAILURE\",\"timestamp\":\"2026-10-05T09:46:48Z\",\"note\":\"\",\"namespace\":\"\",\"successes\":295,\"failures\":20,\"warnings\":99}"
       }
     ]
   }

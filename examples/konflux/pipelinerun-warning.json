@@ -2,7 +2,7 @@
   "apiVersion": "tekton.dev/v1",
   "kind": "PipelineRun",
   "metadata": {
-    "name": "build-example",
+    "name": "enterprise-contract-example",
     "annotations": {
       "pipelinesascode.tekton.dev/results-status": "pac-status"
     }
@@ -18,7 +18,7 @@
     "results": [
       {
         "name": "pac-status",
-        "value": "{\"version\":\"1\",\"outcome\":\"warning\",\"summary\":\"Task deprecated-image-check completed: Check result for task result.\"}"
+        "value": "{\"version\":\"1\",\"outcome\":\"warning\",\"summary\":\"Warning: 150 successes, 5 warnings\"}"
       }
     ]
   }

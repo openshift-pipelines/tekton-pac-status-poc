@@ -1,96 +1,74 @@
-# Konflux-shaped example
+# Konflux runs used by the PoC tests
 
-These fixtures use the real public Konflux `TEST_OUTPUT` contract, with
-synthetic metadata and no live tenant data.
+The tests in this repository are grounded in two public Konflux Check Runs from
+the `openshift-pipelines` organization.
 
-Konflux's [`make_result_json`](https://github.com/konflux-ci/konflux-test/blob/4a9139ff5416841dc1e317eef36f4effa17c0cea/test/utils.sh#L8-L84)
-produces these fields:
+| Case | Public run | Observed task output | GitHub Check output |
+|---|---|---|---|
+| Warning | [`operator` PR #32549](https://github.com/openshift-pipelines/operator/pull/32549), [check run 111713232004](https://github.com/openshift-pipelines/operator/runs/111713232004) | `verify`: `WARNING`; 150 successes, 0 failures, 5 warnings | title `Warning`; conclusion `neutral` |
+| Failure | [`syncer-service` PR #115](https://github.com/openshift-pipelines/syncer-service/pull/115), [check run 111703203017](https://github.com/openshift-pipelines/syncer-service/runs/111703203017) | `verify`: `FAILURE`; 295 successes, 20 failures, 99 warnings | title `Failed`; conclusion `failure` |
 
-```json
-{
-  "result": "WARNING",
-  "timestamp": "2026-10-05T09:00:00+00:00",
-  "note": "Task deprecated-image-check completed: Check result for task result.",
-  "namespace": "required_checks",
-  "successes": 0,
-  "failures": 0,
-  "warnings": 1
-}
-```
+`observed-warning.json` and `observed-failure.json` preserve the public source,
+commit, Check Run conclusion, title, summary, and rendered task-result counts.
+Environment-specific cluster links were omitted.
 
-The public
-[`deprecated-image-check`](https://github.com/konflux-ci/build-definitions/blob/5d2cc53ce0484d2a7b35c7df3bd4f5d9c34423db/archived-tasks/deprecated-image-check/0.5/deprecated-image-check.yaml#L185-L215)
-emits that JSON as a `TEST_OUTPUT` Task result while exiting successfully for
-`SUCCESS`, `WARNING`, `FAILURE`, and `ERROR` outcomes.
-
-## Current input
-
-`taskrun-warning.json` and `taskrun-error.json` show what the completed Konflux
-TaskRun looks like. Notice that both TaskRuns have `Succeeded=True`; the logical
-outcome is inside the JSON string stored in `TEST_OUTPUT`.
+The observations can be reproduced with the public GitHub API:
 
 ```sh
-jq -r '.status.results[] | select(.name == "TEST_OUTPUT").value | fromjson' \
-  examples/konflux/taskrun-error.json
+gh api repos/openshift-pipelines/operator/check-runs/111713232004 \
+  --jq '{name,status,conclusion,output}'
+
+gh api repos/openshift-pipelines/syncer-service/check-runs/111703203017 \
+  --jq '{name,status,conclusion,output}'
 ```
 
-That produces:
+## What is reconstructed
 
-```json
-{
-  "result": "ERROR",
-  "timestamp": "2026-10-05T09:00:00+00:00",
-  "note": "Task deprecated-image-check failed: Command conftest failed. For details, check Tekton task log.",
-  "namespace": "required_checks",
-  "successes": 0,
-  "failures": 0,
-  "warnings": 0
-}
-```
+The Konflux Kubernetes API requires authentication, so these public Check Runs
+do not expose the raw TaskRun objects. `taskrun-warning.json` and
+`taskrun-failure.json` are therefore sanitized TaskRun-shaped reconstructions,
+not cluster exports. They use:
 
-## PoC output
+- the exact result and counters rendered by the public Check Run;
+- the public Konflux [`TEST_OUTPUT` schema](https://github.com/konflux-ci/integration-service/blob/4bea52e03bd58739f43dc0a29eb143c97fdddd4f/helpers/integration.go#L45-L119);
+- the Check Run completion time as the fixture timestamp.
 
-The final task in `tekton/pipelinerun.yaml` reduces `TEST_OUTPUT` to the bounded
-`pac-status` PipelineResult. The PipelineRun fixtures show what PaC receives
-after that aggregation.
+The blank `note` and test-suite fields match the rendered Check output. The PoC
+therefore builds a bounded summary from the counters instead of inventing a
+note.
 
-For a warning:
+`pipelinerun-warning.json` and `pipelinerun-failure.json` show the corresponding
+PipelineRun state after the final aggregation task. For `FAILURE`, that task
+exits non-zero so the PipelineRun and VCS conclusions remain aligned.
+
+## How the fixtures are tested
+
+`TestObservedKonfluxOutputs` in `main_test.go`:
+
+1. loads each `observed-*.json` public observation;
+2. verifies the reconstructed TaskRun has the same result and counters;
+3. runs the PaC decision over the corresponding PipelineRun;
+4. checks its GitHub conclusion against the observed Check Run; and
+5. checks that warning details retain the observed counts.
+
+Run it with:
 
 ```sh
-go run . -provider github-checks examples/konflux/pipelinerun-warning.json
+go test -run TestObservedKonfluxOutputs -v
 ```
+
+The warning decision is:
 
 ```json
 {
   "executionConclusion": "success",
   "vcsConclusion": "neutral",
   "warning": true,
-  "summary": "Task deprecated-image-check completed: Check result for task result."
+  "summary": "Warning: 150 successes, 5 warnings"
 }
 ```
 
-GitLab has no neutral warning state in this PoC, so it remains successful while
-carrying the warning details:
-
-```sh
-go run . -provider gitlab examples/konflux/pipelinerun-warning.json
-```
-
-```json
-{
-  "executionConclusion": "success",
-  "vcsConclusion": "success",
-  "warning": true,
-  "summary": "Task deprecated-image-check completed: Check result for task result."
-}
-```
-
-For `ERROR` or `FAILURE`, the final aggregation task exits non-zero. PaC then
-uses the failed PipelineRun condition normally:
-
-```sh
-go run . -provider github-checks examples/konflux/pipelinerun-error.json
-```
+The failure decision is:
 
 ```json
 {
@@ -99,3 +77,16 @@ go run . -provider github-checks examples/konflux/pipelinerun-error.json
   "warning": false
 }
 ```
+
+## Existing Konflux behavior
+
+This is the same decision policy already used by Konflux Integration Service:
+
+- it reads `TEST_OUTPUT` from child TaskRuns and treats `WARNING` as passing
+  with warnings ([aggregation](https://github.com/konflux-ci/integration-service/blob/4bea52e03bd58739f43dc0a29eb143c97fdddd4f/helpers/integration.go#L251-L284));
+- it renders the result and counters into the task table
+  ([formatting](https://github.com/konflux-ci/integration-service/blob/4bea52e03bd58739f43dc0a29eb143c97fdddd4f/status/format.go#L160-L252));
+- it maps warnings to GitHub Check Runs `neutral` and GitHub commit statuses
+  `success` ([GitHub mapping](https://github.com/konflux-ci/integration-service/blob/4bea52e03bd58739f43dc0a29eb143c97fdddd4f/status/reporter_github.go#L568-L618)); and
+- it maps warnings to GitLab `success`
+  ([GitLab mapping](https://github.com/konflux-ci/integration-service/blob/4bea52e03bd58739f43dc0a29eb143c97fdddd4f/status/reporter_gitlab.go#L650-L692)).

@@ -7,9 +7,9 @@ demo:
 	go run . -provider github-checks examples/warning.json
 
 demo-konflux:
-	@echo 'Konflux TEST_OUTPUT:'
-	@jq -r '.status.results[] | select(.name == "TEST_OUTPUT").value | fromjson' examples/konflux/taskrun-warning.json
-	@printf '\nGitHub Checks decision:\n'
+	@echo 'Observed public Konflux output:'
+	@jq '{source, githubCheck, taskResult}' examples/konflux/observed-warning.json
+	@printf '\nPoC GitHub Checks decision:\n'
 	@go run . -provider github-checks examples/konflux/pipelinerun-warning.json
 
 fmt:
