@@ -1,0 +1,20 @@
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "PipelineRun",
+  "metadata": {
+    "name": "build-example",
+    "annotations": {
+      "pipelinesascode.tekton.dev/results-status": "pac-status"
+    }
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Succeeded",
+        "status": "False",
+        "reason": "Failed",
+        "message": "Final status aggregation reported ERROR"
+      }
+    ]
+  }
+}

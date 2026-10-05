@@ -51,13 +51,16 @@ spec:
                 #!/usr/bin/env python3
                 import json
                 import os
+                from datetime import datetime, timezone
 
                 outcome = os.environ["OUTCOME"].strip().upper()
                 report = {
                     "result": outcome,
+                    "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     "note": os.environ["SUMMARY"].strip(),
+                    "namespace": "required_checks",
                     "successes": int(outcome == "SUCCESS"),
-                    "failures": int(outcome in {"FAILURE", "ERROR"}),
+                    "failures": int(outcome == "FAILURE"),
                     "warnings": int(outcome == "WARNING"),
                 }
                 with open(os.environ["RESULT_PATH"], "w", encoding="utf-8") as result:

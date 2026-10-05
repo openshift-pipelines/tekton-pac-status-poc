@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -101,6 +102,46 @@ func TestDecide(t *testing.T) {
 			}
 			got.Diagnostic = ""
 			if got != test.want {
+				t.Fatalf("decide() = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestKonfluxExamples(t *testing.T) {
+	tests := []struct {
+		name string
+		file string
+		want decision
+	}{
+		{
+			name: "warning",
+			file: "examples/konflux/pipelinerun-warning.json",
+			want: decision{
+				ExecutionConclusion: "success",
+				VCSConclusion:       "neutral",
+				Warning:             true,
+				Summary:             "Task deprecated-image-check completed: Check result for task result.",
+			},
+		},
+		{
+			name: "error",
+			file: "examples/konflux/pipelinerun-error.json",
+			want: decision{ExecutionConclusion: "failure", VCSConclusion: "failure"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data, err := os.ReadFile(test.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pr pipelineRun
+			if err := json.Unmarshal(data, &pr); err != nil {
+				t.Fatal(err)
+			}
+			if got := decide(pr, "github-checks"); got != test.want {
 				t.Fatalf("decide() = %#v, want %#v", got, test.want)
 			}
 		})

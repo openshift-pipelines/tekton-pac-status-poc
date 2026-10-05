@@ -1,0 +1,22 @@
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "TaskRun",
+  "metadata": {
+    "name": "deprecated-image-check-example"
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Succeeded",
+        "status": "True",
+        "reason": "Succeeded"
+      }
+    ],
+    "results": [
+      {
+        "name": "TEST_OUTPUT",
+        "value": "{\"result\":\"WARNING\",\"timestamp\":\"2026-10-05T09:00:00+00:00\",\"note\":\"Task deprecated-image-check completed: Check result for task result.\",\"namespace\":\"required_checks\",\"successes\":0,\"failures\":0,\"warnings\":1}"
+      }
+    ]
+  }
+}

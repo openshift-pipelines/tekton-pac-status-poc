@@ -75,6 +75,16 @@ Expected GitHub Check Runs decision:
 `examples/inconsistent-failure.json` demonstrates the safety rule: a result
 cannot silently make VCS failure disagree with a successful `PipelineRun`.
 
+## Konflux-shaped input and output
+
+[`examples/konflux`](examples/konflux) contains sanitized TaskRun fixtures using
+the real public Konflux `TEST_OUTPUT` schema, the PipelineRun shape PaC would
+consume after aggregation, and expected GitHub/GitLab decisions.
+
+```sh
+make demo-konflux
+```
+
 ## Run the Tekton example
 
 The default manifest emits a warning and finishes successfully:
